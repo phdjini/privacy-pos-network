@@ -1,0 +1,129 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # Bootstrap Node (첫 번째 노드)
+  privacy-pos-bootstrap:
+    build: .
+    container_name: privacy-pos-bootstrap
+    ports:
+      - "30303:30303"
+      - "8080:8080"
+    volumes:
+      - bootstrap_data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_TYPE=bootstrap
+      - NODE_ID=bootstrap-node-001
+      - NETWORK_PORT=30303
+      - API_PORT=8080
+    command: ["python", "privacy_pos_network.py", "start",
+              "--port", "30303",
+              "--api-port", "8080",
+              "--node-id", "bootstrap-node-001"]
+    restart: unless-stopped
+    networks:
+      - privacy-pos-network
+
+  # Validator Node 1
+  privacy-pos-validator1:
+    build: .
+    container_name: privacy-pos-validator1
+    ports:
+      - "30304:30304"
+      - "8081:8080"
+    volumes:
+      - validator1_data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_TYPE=validator
+      - NODE_ID=validator-node-001
+      - NETWORK_PORT=30304
+      - API_PORT=8080
+      - BOOTSTRAP_NODE=privacy-pos-bootstrap:30303
+    command: ["python", "privacy_pos_network.py", "start",
+              "--port", "30304",
+              "--api-port", "8080",
+              "--node-id", "validator-node-001",
+              "--bootstrap", "privacy-pos-bootstrap:30303"]
+    depends_on:
+      - privacy-pos-bootstrap
+    restart: unless-stopped
+    networks:
+      - privacy-pos-network
+
+  # Validator Node 2
+  privacy-pos-validator2:
+    build: .
+    container_name: privacy-pos-validator2
+    ports:
+      - "30305:30305"
+      - "8082:8080"
+    volumes:
+      - validator2_data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_TYPE=validator
+      - NODE_ID=validator-node-002
+      - NETWORK_PORT=30305
+      - API_PORT=8080
+      - BOOTSTRAP_NODE=privacy-pos-bootstrap:30303
+    command: ["python", "privacy_pos_network.py", "start",
+              "--port", "30305",
+              "--api-port", "8080",
+              "--node-id", "validator-node-002",
+              "--bootstrap", "privacy-pos-bootstrap:30303"]
+    depends_on:
+      - privacy-pos-bootstrap
+    restart: unless-stopped
+    networks:
+      - privacy-pos-network
+
+  # Monitoring Service
+  privacy-pos-monitor:
+    build: .
+    container_name: privacy-pos-monitor
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring:/app/monitoring
+    environment:
+      - MONITOR_NODES=privacy-pos-bootstrap:8080,privacy-pos-validator1:8080,privacy-pos-validator2:8080
+    command: ["python", "monitoring/monitor.py"]
+    depends_on:
+      - privacy-pos-bootstrap
+      - privacy-pos-validator1
+      - privacy-pos-validator2
+    restart: unless-stopped
+    networks:
+      - privacy-pos-network
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: privacy-pos-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - privacy-pos-bootstrap
+      - privacy-pos-validator1
+      - privacy-pos-validator2
+    restart: unless-stopped
+    networks:
+      - privacy-pos-network
+
+volumes:
+  bootstrap_data:
+  validator1_data:
+  validator2_data:
+
+networks:
+  privacy-pos-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
