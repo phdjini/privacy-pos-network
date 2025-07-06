@@ -234,17 +234,20 @@ class CryptoUtils:
         except InvalidSignature:
             return False
         except Exception as e:
-            logger.error(f"Test failed: {e}")
+            logger.error(f"Signature verification error: {e}")
+            return False
 
-        finally:
-        # 정리 작업
-        if 'nodes' in locals():
-            for node in nodes:
-                try:
-                    await node.stop()
-                except:
-                    pass
-
+    # finally 블록은 별도의 함수에 있어야 함
+    async def cleanup_nodes():
+        """노드 정리 작업"""
+        if 'nodes' in locals() or 'nodes' in globals():
+            nodes = locals().get('nodes') or globals().get('nodes')
+            if nodes:
+                for node in nodes:
+                    try:
+                        await node.stop()
+                    except Exception:
+                        pass
 
 class PrivacyPoSAPI:
     """Privacy-PoS REST API 서버"""
@@ -674,7 +677,7 @@ async def run_cli():
 
     elif args.command == 'send':
         # 트랜잭션 전송 (간단한 구현)
-        print(f"Sending transaction: {args.from} -> {args.to}, value: {args.value}")
+        print(f"Sending transaction: {getattr(args, 'from')} -> {args.to}, value: {args.value}")
 
     elif args.command == 'status':
         # 노드 상태 조회 (간단한 구현)
@@ -685,17 +688,18 @@ async def run_cli():
 
 
 if __name__ == "__main__":
+    import traceback  # ✅ 상단으로 이동
+
     try:
-        asyncio.run(run_cli())
+        exit_code = asyncio.run(run_cli())
+        exit(exit_code if exit_code else 0)
     except KeyboardInterrupt:
         logger.info("Application interrupted")
+        exit(0)
     except Exception as e:
         logger.error(f"Application error: {e}")
-        import traceback
-
-        traceback.print_exc() as e:
-        logger.error(f"Signature verification error: {e}")
-        return False
+        traceback.print_exc()
+        exit(1)
 
 
 class PersistentDatabase:
@@ -2072,4 +2076,5 @@ async def main():
 
     except KeyboardInterrupt:
         logger.info("Test interrupted by user")
-    except Exception
+    except Exception:
+        logger.error(f"Test failed: {e}")
