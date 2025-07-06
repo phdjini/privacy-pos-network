@@ -236,14 +236,14 @@ class CryptoUtils:
         except Exception as e:
             logger.error(f"Test failed: {e}")
 
-    finally:
-    # 정리 작업
-    if 'nodes' in locals():
-        for node in nodes:
-            try:
-                await node.stop()
-            except:
-                pass
+        finally:
+        # 정리 작업
+        if 'nodes' in locals():
+            for node in nodes:
+                try:
+                    await node.stop()
+                except:
+                    pass
 
 
 class PrivacyPoSAPI:
